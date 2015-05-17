@@ -42,16 +42,20 @@ public class AdaptiveExecutor {
 
     private final int globalMaxThread;
     private final IntUnaryOperator threadCountFunction;
+    private final boolean callerRuns;
 
     private final AtomicInteger threadCounter = new AtomicInteger();
 
     /**
      * @param globalMaxThread
      * @param threadCountFunction
+     * @param callerRuns
      */
-    private AdaptiveExecutor(int globalMaxThread, IntUnaryOperator threadCountFunction) {
+    private AdaptiveExecutor(int globalMaxThread, IntUnaryOperator threadCountFunction,
+            boolean callerRuns) {
         this.globalMaxThread = globalMaxThread;
         this.threadCountFunction = threadCountFunction;
+        this.callerRuns = callerRuns;
     }
 
     public final <K> void run(Collection<K> keys, Consumer<K> func) {
@@ -83,7 +87,7 @@ public class AdaptiveExecutor {
         if (calls == null || calls.isEmpty()) {
             return Collections.emptyList();
         }
-        ExecutorService executorService = newExecutor(calls.size());
+        ExecutorService executorService = newExecutor(calls.size(), callerRuns);
         try {
             List<Future<V>> invokeAll = executorService.invokeAll(calls);
             return invokeAll.stream().map(this::futureGet).collect(Collectors.toList());
@@ -105,7 +109,7 @@ public class AdaptiveExecutor {
         return Math.min(globalMaxThread - old, need);
     }
 
-    private ExecutorService newExecutor(int keySize) {
+    private ExecutorService newExecutor(int keySize, boolean callerRuns) {
         int needThread = threadCountFunction.applyAsInt(keySize);
         if (needThread <= 1) {
             return DIRECT_EXECUTOR_SERVICE;
@@ -114,9 +118,29 @@ public class AdaptiveExecutor {
         if (leftThread <= 0) {
             return DIRECT_EXECUTOR_SERVICE;
         } else {
-            ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(leftThread, leftThread,
-                    0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1));
-            threadPoolExecutor.setRejectedExecutionHandler(CALLER_RUNS_POLICY);
+            ThreadPoolExecutor threadPoolExecutor;
+            if (callerRuns) {
+                threadPoolExecutor = new ThreadPoolExecutor(leftThread, leftThread, 0L,
+                        TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1));
+                threadPoolExecutor.setRejectedExecutionHandler(CALLER_RUNS_POLICY);
+            } else {
+                threadPoolExecutor = new ThreadPoolExecutor(leftThread, leftThread, 0L,
+                        TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1) {
+
+                            private static final long serialVersionUID = 1L;
+
+                            @Override
+                            public boolean offer(Runnable e) {
+                                try {
+                                    put(e);
+                                    return true;
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                }
+                                return false;
+                            }
+                        });
+            }
             return threadPoolExecutor;
         }
     }
@@ -145,9 +169,20 @@ public class AdaptiveExecutor {
 
         private int globalMaxThread;
         private IntUnaryOperator threadCountFunction;
+        private boolean callerRuns;
 
         public Builder withGlobalMaxThread(int globalMaxThread) {
             this.globalMaxThread = globalMaxThread;
+            return this;
+        }
+
+        public Builder enableCallerRunsPolicy() {
+            callerRuns = true;
+            return this;
+        }
+
+        public Builder withThreadStrategy(IntUnaryOperator func) {
+            this.threadCountFunction = func;
             return this;
         }
 
@@ -182,7 +217,7 @@ public class AdaptiveExecutor {
         }
 
         public AdaptiveExecutor build() {
-            return new AdaptiveExecutor(globalMaxThread, threadCountFunction);
+            return new AdaptiveExecutor(globalMaxThread, threadCountFunction, callerRuns);
         }
 
     }
