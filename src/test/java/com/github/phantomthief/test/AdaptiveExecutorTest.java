@@ -94,14 +94,13 @@ public class AdaptiveExecutorTest {
     public void testFastFail() {
         try {
             AdaptiveExecutor.newBuilder().build();
-        } catch (Throwable e) {
-            assert(e.getClass() == IllegalArgumentException.class);
-        }
+        } catch (NullPointerException e) {}
         try {
             AdaptiveExecutor.newBuilder().withGlobalMaxThread(1).build();
-        } catch (Throwable e) {
-            assert(e.getClass() == NullPointerException.class);
-        }
+        } catch (NullPointerException e) {}
+        try {
+            AdaptiveExecutor.newBuilder().withGlobalMaxThread(1).withThreadStrategy(i -> 1).build();
+        } catch (NullPointerException e) {}
     }
 
     private String exec(Integer i) {
