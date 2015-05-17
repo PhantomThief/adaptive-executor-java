@@ -17,7 +17,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
@@ -40,11 +39,10 @@ public class AdaptiveExecutor {
 
     private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(getClass());
 
-    private final int globalMaxThread;
     private final IntUnaryOperator threadCountFunction;
     private final boolean callerRuns;
 
-    private final AtomicInteger threadCounter = new AtomicInteger();
+    private volatile int threadCounter;
 
     /**
      * @param globalMaxThread
@@ -53,9 +51,9 @@ public class AdaptiveExecutor {
      */
     private AdaptiveExecutor(int globalMaxThread, IntUnaryOperator threadCountFunction,
             boolean callerRuns) {
-        this.globalMaxThread = globalMaxThread;
         this.threadCountFunction = threadCountFunction;
         this.callerRuns = callerRuns;
+        this.threadCounter = globalMaxThread;
     }
 
     public final <K> void run(Collection<K> keys, Consumer<K> func) {
@@ -102,20 +100,23 @@ public class AdaptiveExecutor {
         }
     }
 
-    private final int leftThreadCount(int old, int need) {
-        if (old >= globalMaxThread) {
-            return 0;
-        }
-        return Math.min(globalMaxThread - old, need);
-    }
-
     private ExecutorService newExecutor(int keySize, boolean callerRuns) {
         int needThread = threadCountFunction.applyAsInt(keySize);
         if (needThread <= 1) {
             return DIRECT_EXECUTOR_SERVICE;
         }
-        int leftThread = threadCounter.updateAndGet(old -> leftThreadCount(old, needThread));
+        int leftThread;
+        synchronized (this) {
+            if (threadCounter >= needThread) {
+                leftThread = needThread;
+                threadCounter -= needThread;
+            } else {
+                leftThread = threadCounter;
+                threadCounter = 0;
+            }
+        }
         if (leftThread <= 0) {
+            logger.trace("no left thread availabled, using direct executor service.");
             return DIRECT_EXECUTOR_SERVICE;
         } else {
             ThreadPoolExecutor threadPoolExecutor;
@@ -141,6 +142,7 @@ public class AdaptiveExecutor {
                             }
                         });
             }
+            logger.trace("init a executor, thread count:{}", leftThread);
             return threadPoolExecutor;
         }
     }
@@ -160,7 +162,11 @@ public class AdaptiveExecutor {
         if (MoreExecutors.shutdownAndAwaitTermination(executorService, 1, TimeUnit.MINUTES)) {
             if (executorService instanceof ThreadPoolExecutor) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executorService;
-                threadCounter.addAndGet(-threadPoolExecutor.getCorePoolSize());
+                synchronized (this) {
+                    threadCounter += threadPoolExecutor.getCorePoolSize();
+                    logger.trace("destoried a executor, with thread:{}, availabled thread:{}",
+                            threadPoolExecutor.getCorePoolSize(), threadPoolExecutor);
+                }
             }
         }
     }
