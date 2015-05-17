@@ -31,7 +31,7 @@ public class AdaptiveExecutorTest {
         ExecutorService executorService = Executors.newFixedThreadPool(20);
         for (int i = 0; i < 100; i++) {
             executorService.execute(() -> {
-                List<Integer> tasks = IntStream.range(0, new Random().nextInt(20) + 5).boxed()
+                List<Integer> tasks = IntStream.range(0, new Random().nextInt(100) + 1).boxed()
                         .collect(Collectors.toList());
                 Map<Integer, String> result = executor.invokeAll(tasks, this::exec);
                 for (Integer task : tasks) {

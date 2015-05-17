@@ -103,6 +103,7 @@ public class AdaptiveExecutor {
     private ExecutorService newExecutor(int keySize, boolean callerRuns) {
         int needThread = threadCountFunction.applyAsInt(keySize);
         if (needThread <= 1) {
+            logger.trace("need thread one, using director service.");
             return DIRECT_EXECUTOR_SERVICE;
         }
         int leftThread;
@@ -165,7 +166,7 @@ public class AdaptiveExecutor {
                 synchronized (this) {
                     threadCounter += threadPoolExecutor.getCorePoolSize();
                     logger.trace("destoried a executor, with thread:{}, availabled thread:{}",
-                            threadPoolExecutor.getCorePoolSize(), threadPoolExecutor);
+                            threadPoolExecutor.getCorePoolSize(), threadCounter);
                 }
             }
         }
