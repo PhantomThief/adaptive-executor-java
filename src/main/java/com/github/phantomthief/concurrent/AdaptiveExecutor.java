@@ -89,9 +89,6 @@ public class AdaptiveExecutor {
         try {
             List<Future<V>> invokeAll = executorService.invokeAll(calls);
             return invokeAll.stream().map(this::futureGet).collect(Collectors.toList());
-        } catch (InterruptedException e) {
-            logger.debug("Ops.{}", e.toString());
-            return Collections.emptyList();
         } catch (Throwable e) {
             logger.error("Ops.", e);
             return Collections.emptyList();
