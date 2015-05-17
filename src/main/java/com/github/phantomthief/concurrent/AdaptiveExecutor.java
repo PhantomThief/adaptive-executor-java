@@ -14,6 +14,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +27,7 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * @author w.vela
@@ -40,6 +42,7 @@ public class AdaptiveExecutor {
     private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(getClass());
 
     private final IntUnaryOperator threadCountFunction;
+    private final ThreadFactory threadFactory;
     private final boolean callerRuns;
 
     private volatile int threadCounter;
@@ -47,11 +50,15 @@ public class AdaptiveExecutor {
     /**
      * @param globalMaxThread
      * @param threadCountFunction
+     * @param threadFactory
      * @param callerRuns
      */
-    private AdaptiveExecutor(int globalMaxThread, IntUnaryOperator threadCountFunction,
+    private AdaptiveExecutor(int globalMaxThread, //
+            IntUnaryOperator threadCountFunction, //
+            ThreadFactory threadFactory, //
             boolean callerRuns) {
         this.threadCountFunction = threadCountFunction;
+        this.threadFactory = threadFactory;
         this.callerRuns = callerRuns;
         this.threadCounter = globalMaxThread;
     }
@@ -120,8 +127,8 @@ public class AdaptiveExecutor {
             ThreadPoolExecutor threadPoolExecutor;
             if (callerRuns) {
                 threadPoolExecutor = new ThreadPoolExecutor(leftThread, leftThread, 0L,
-                        TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1));
-                threadPoolExecutor.setRejectedExecutionHandler(CALLER_RUNS_POLICY);
+                        TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1), threadFactory,
+                        CALLER_RUNS_POLICY);
             } else {
                 threadPoolExecutor = new ThreadPoolExecutor(leftThread, leftThread, 0L,
                         TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1) {
@@ -138,7 +145,7 @@ public class AdaptiveExecutor {
                                 }
                                 return false;
                             }
-                        });
+                        }, threadFactory);
             }
             logger.trace("init a executor, thread count:{}", leftThread);
             return threadPoolExecutor;
@@ -173,6 +180,7 @@ public class AdaptiveExecutor {
 
         private int globalMaxThread;
         private IntUnaryOperator threadCountFunction;
+        private ThreadFactory threadFactory;
         private boolean callerRuns;
 
         public Builder withGlobalMaxThread(int globalMaxThread) {
@@ -199,6 +207,11 @@ public class AdaptiveExecutor {
             return this;
         }
 
+        public Builder threadFactory(ThreadFactory threadFactory) {
+            this.threadFactory = threadFactory;
+            return this;
+        }
+
         /**
          * @param minMultiThreadThreshold 操作数超过这个阈值就启用多线程
          * @param maxThreadPerOp 每个操作最多的线程数，尽可能多的使用多线程
@@ -221,7 +234,23 @@ public class AdaptiveExecutor {
         }
 
         public AdaptiveExecutor build() {
-            return new AdaptiveExecutor(globalMaxThread, threadCountFunction, callerRuns);
+            ensure();
+            return new AdaptiveExecutor(globalMaxThread, threadCountFunction, threadFactory,
+                    callerRuns);
+        }
+
+        private void ensure() {
+            if (threadCountFunction == null) {
+                throw new NullPointerException("thread count function is null.");
+            }
+            if (globalMaxThread <= 0) {
+                throw new IllegalArgumentException("global max thread is illeagl.");
+            }
+            if (threadFactory == null) {
+                threadFactory = new ThreadFactoryBuilder() //
+                        .setNameFormat("pool-adaptive-thread-%d") //
+                        .build();
+            }
         }
 
     }

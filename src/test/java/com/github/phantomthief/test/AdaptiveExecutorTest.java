@@ -51,6 +51,7 @@ public class AdaptiveExecutorTest {
                 .withGlobalMaxThread(10) //
                 .maxThreadAsPossible(5, 8) //
                 .enableCallerRunsPolicy() //
+                .threadFactory(Executors.defaultThreadFactory()) //
                 .build();
         ExecutorService executorService = Executors.newFixedThreadPool(20);
         for (int i = 0; i < 100; i++) {
@@ -86,6 +87,20 @@ public class AdaptiveExecutorTest {
         for (Integer task : tasks) {
             assert(result.containsKey(task));
             assert(result.get(task) == null);
+        }
+    }
+
+    @Test
+    public void testFastFail() {
+        try {
+            AdaptiveExecutor.newBuilder().build();
+        } catch (Throwable e) {
+            assert(e.getClass() == IllegalArgumentException.class);
+        }
+        try {
+            AdaptiveExecutor.newBuilder().withGlobalMaxThread(1).build();
+        } catch (Throwable e) {
+            assert(e.getClass() == NullPointerException.class);
         }
     }
 
