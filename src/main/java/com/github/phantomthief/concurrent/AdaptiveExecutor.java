@@ -164,7 +164,7 @@ public class AdaptiveExecutor {
         if (executorService instanceof ListeningExecutorService) {
             return;
         }
-        if (MoreExecutors.shutdownAndAwaitTermination(executorService, 1, TimeUnit.MINUTES)) {
+        if (MoreExecutors.shutdownAndAwaitTermination(executorService, 1, TimeUnit.DAYS)) {
             if (executorService instanceof ThreadPoolExecutor) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executorService;
                 synchronized (this) {
