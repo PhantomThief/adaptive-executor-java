@@ -269,4 +269,8 @@ public class AdaptiveExecutor {
         return cpuCoreAdaptive.get();
     }
 
+    public int getLeftThreadCount() {
+        return threadCounter;
+    }
+
 }
