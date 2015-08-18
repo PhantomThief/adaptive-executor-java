@@ -3,6 +3,8 @@
  */
 package com.github.phantomthief.concurrent;
 
+import static java.util.stream.Collectors.toList;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
-import java.util.stream.Collectors;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
@@ -72,7 +73,7 @@ public class AdaptiveExecutor {
 
     public final <K, V> Map<K, V> invokeAll(Collection<K> keys, Function<K, V> func) {
         List<Callable<V>> calls = keys.stream().<Callable<V>> map(k -> () -> func.apply(k))
-                .collect(Collectors.toList());
+                .collect(toList());
         List<V> callResult = invokeAll(calls);
         Iterator<V> iterator = callResult.iterator();
         Map<K, V> result = new HashMap<>();
@@ -95,7 +96,7 @@ public class AdaptiveExecutor {
         ExecutorService executorService = newExecutor(calls.size(), callerRuns);
         try {
             List<Future<V>> invokeAll = executorService.invokeAll(calls);
-            return invokeAll.stream().map(this::futureGet).collect(Collectors.toList());
+            return invokeAll.stream().map(this::futureGet).collect(toList());
         } catch (Throwable e) {
             logger.error("Ops.", e);
             return Collections.emptyList();
@@ -218,8 +219,8 @@ public class AdaptiveExecutor {
          * @return
          */
         public Builder maxThreadAsPossible(int minMultiThreadThreshold, int maxThreadPerOp) {
-            this.threadCountFunction = i -> i <= minMultiThreadThreshold ? 1
-                    : Math.min(maxThreadPerOp, i);
+            this.threadCountFunction = i -> i <= minMultiThreadThreshold ? 1 : Math
+                    .min(maxThreadPerOp, i);
             return this;
         }
 
