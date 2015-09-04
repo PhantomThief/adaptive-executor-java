@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -241,12 +242,8 @@ public class AdaptiveExecutor {
         }
 
         private void ensure() {
-            if (threadCountFunction == null) {
-                throw new NullPointerException("thread count function is null.");
-            }
-            if (globalMaxThread <= 0) {
-                throw new IllegalArgumentException("global max thread is illeagl.");
-            }
+            Preconditions.checkNotNull(threadCountFunction, "thread count function is null.");
+            Preconditions.checkArgument(globalMaxThread > 0, "global max thread is illeagl.");
             if (threadFactory == null) {
                 threadFactory = new ThreadFactoryBuilder() //
                         .setNameFormat("pool-adaptive-thread-%d") //
