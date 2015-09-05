@@ -36,12 +36,13 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
  */
 public class AdaptiveExecutor {
 
+    private static org.slf4j.Logger logger = org.slf4j.LoggerFactory
+            .getLogger(AdaptiveExecutor.class);
+
     private static final Object EMPTY_OBJECT = new Object();
     private static final CallerRunsPolicy CALLER_RUNS_POLICY = new CallerRunsPolicy();
     private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = MoreExecutors
             .newDirectExecutorService();
-
-    private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(getClass());
 
     private final IntUnaryOperator threadCountFunction;
     private final ThreadFactory threadFactory;
@@ -247,6 +248,7 @@ public class AdaptiveExecutor {
             if (threadFactory == null) {
                 threadFactory = new ThreadFactoryBuilder() //
                         .setNameFormat("pool-adaptive-thread-%d") //
+                        .setUncaughtExceptionHandler((t, e) -> logger.error("Ops.", e)) //
                         .build();
             }
         }
