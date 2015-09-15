@@ -50,7 +50,6 @@ AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
 ## 注意事项
 
 * 如果派生线程数为1，则会以单线程方式执行，将以调用者线程执行
-* 多线程任务，超过线程池允许的线程数后，会阻塞。如果希望超过线程池允许的线程数任务以调用者线程执行，可以使用enableCallerRunsPolicy()开启，这样做能充分利用调用者线程执行任务，不过注意，对于任务执行时间分布比较大的任务，如果出现分配给调用者线程的任务执行时间过长，会阻塞多线程提交，从而造成线程饥饿，请谨慎使用（Java Executor Framework本身CallerRunsPolicy也有一样的问题）。
+* 多线程任务，超过线程池允许的线程数后，会阻塞。如果希望超过线程池允许的线程数任务以调用者线程执行，可以使用enableCallerRunsPolicy()开启，这样做能充分利用调用者线程执行任务，不过注意，对于任务执行时间分布比较大的任务，如果出现分配给调用者线程的任务执行时间过长，会阻塞多线程提交，从而造成线程饥饿，请谨慎使用（Java Executor Framework本身CallerRunsPolicy也有一样的问题）
 * AdaptiveExecutor是线程安全的，所以建议尽可能的共享实例
-* AdaptiveExecutor本身并不会持有线程池，所以也不需要在使用完毕后关闭
-* 请尽量不要提交开销很小的任务，每次AdaptiveExecutor调用时会分配临时的线程池，这个开销可能会比短小任务的开销还要大。基本上说，本工具类只是对Java Executor Framework的封装。
+* AdaptiveExecutor本身会持有一个线程池，所以在用完之后需要关闭

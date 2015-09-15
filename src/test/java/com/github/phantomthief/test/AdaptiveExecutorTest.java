@@ -50,7 +50,6 @@ public class AdaptiveExecutorTest {
         AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
                 .withGlobalMaxThread(10) //
                 .maxThreadAsPossible(5, 8) //
-                .enableCallerRunsPolicy() //
                 .threadFactory(Executors.defaultThreadFactory()) //
                 .build();
         ExecutorService executorService = Executors.newFixedThreadPool(20);

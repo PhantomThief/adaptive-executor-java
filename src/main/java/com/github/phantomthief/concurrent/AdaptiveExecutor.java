@@ -5,6 +5,9 @@ package com.github.phantomthief.concurrent;
 
 import static java.util.stream.Collectors.toList;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,7 +18,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
@@ -23,10 +26,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
+import java.util.stream.Stream;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -34,36 +39,28 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 /**
  * @author w.vela
  */
-public class AdaptiveExecutor {
+public class AdaptiveExecutor implements Closeable {
 
     private static org.slf4j.Logger logger = org.slf4j.LoggerFactory
             .getLogger(AdaptiveExecutor.class);
 
+    private static final long DEFAULT_TIMEOUT = TimeUnit.SECONDS.toMillis(60);
     private static final Object EMPTY_OBJECT = new Object();
     private static final CallerRunsPolicy CALLER_RUNS_POLICY = new CallerRunsPolicy();
     private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = MoreExecutors
             .newDirectExecutorService();
 
+    private final ThreadPoolExecutor threadPoolExecutor;
     private final IntUnaryOperator threadCountFunction;
-    private final ThreadFactory threadFactory;
-    private final boolean callerRuns;
 
-    private volatile int threadCounter;
-
-    /**
-     * @param globalMaxThread
-     * @param threadCountFunction
-     * @param threadFactory
-     * @param callerRuns
-     */
     private AdaptiveExecutor(int globalMaxThread, //
+            long threadTimeout, //
             IntUnaryOperator threadCountFunction, //
-            ThreadFactory threadFactory, //
-            boolean callerRuns) {
+            ThreadFactory threadFactory) {
         this.threadCountFunction = threadCountFunction;
-        this.threadFactory = threadFactory;
-        this.callerRuns = callerRuns;
-        this.threadCounter = globalMaxThread;
+        this.threadPoolExecutor = new ThreadPoolExecutor(0, globalMaxThread, threadTimeout,
+                TimeUnit.MILLISECONDS, new SynchronousQueue<Runnable>(), threadFactory,
+                CALLER_RUNS_POLICY);
     }
 
     public final <K> void run(Collection<K> keys, Consumer<K> func) {
@@ -95,87 +92,39 @@ public class AdaptiveExecutor {
         if (calls == null || calls.isEmpty()) {
             return Collections.emptyList();
         }
-        ExecutorService executorService = newExecutor(calls.size(), callerRuns);
+        ExecutorService executorService;
+        int thread = Math.max(1, threadCountFunction.applyAsInt(calls.size()));
+        if (thread == 1) {
+            executorService = DIRECT_EXECUTOR_SERVICE;
+        } else {
+            executorService = threadPoolExecutor;
+        }
+        List<Callable<List<V>>> packed = new ArrayList<>();
+        for (List<Callable<V>> list : Iterables.partition(calls,
+                (int) Math.ceil((double) calls.size() / thread))) {
+            packed.add(() -> {
+                List<V> result = new ArrayList<>(list.size());
+                for (Callable<V> callable : list) {
+                    result.add(callable.call());
+                }
+                return result;
+            });
+        }
+
         try {
-            List<Future<V>> invokeAll = executorService.invokeAll(calls);
-            return invokeAll.stream().map(this::futureGet).collect(toList());
+            List<Future<List<V>>> invokeAll = executorService.invokeAll(packed);
+            return invokeAll.stream().flatMap(this::futureGet).collect(toList());
         } catch (Throwable e) {
             logger.error("Ops.", e);
             return Collections.emptyList();
-        } finally {
-            shutdownExecutor(executorService);
         }
     }
 
-    private ExecutorService newExecutor(int keySize, boolean callerRuns) {
-        int needThread = threadCountFunction.applyAsInt(keySize);
-        if (needThread <= 1) {
-            logger.trace("need thread one, using director service.");
-            return DIRECT_EXECUTOR_SERVICE;
-        }
-        int leftThread;
-        synchronized (this) {
-            if (threadCounter >= needThread) {
-                leftThread = needThread;
-                threadCounter -= needThread;
-            } else {
-                leftThread = threadCounter;
-                threadCounter = 0;
-            }
-        }
-        if (leftThread <= 0) {
-            logger.trace("no left thread availabled, using direct executor service.");
-            return DIRECT_EXECUTOR_SERVICE;
-        } else {
-            ThreadPoolExecutor threadPoolExecutor;
-            if (callerRuns) {
-                threadPoolExecutor = new ThreadPoolExecutor(leftThread, leftThread, 0L,
-                        TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1), threadFactory,
-                        CALLER_RUNS_POLICY);
-            } else {
-                threadPoolExecutor = new ThreadPoolExecutor(leftThread, leftThread, 0L,
-                        TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1) {
-
-                            private static final long serialVersionUID = 1L;
-
-                            @Override
-                            public boolean offer(Runnable e) {
-                                try {
-                                    put(e);
-                                    return true;
-                                } catch (InterruptedException ie) {
-                                    Thread.currentThread().interrupt();
-                                }
-                                return false;
-                            }
-                        }, threadFactory);
-            }
-            logger.trace("init a executor, thread count:{}", leftThread);
-            return threadPoolExecutor;
-        }
-    }
-
-    private final <V> V futureGet(Future<V> future) {
+    private final <V> Stream<V> futureGet(Future<List<V>> future) {
         try {
-            return future.get();
+            return future.get().stream();
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private final void shutdownExecutor(ExecutorService executorService) {
-        if (executorService instanceof ListeningExecutorService) {
-            return;
-        }
-        if (MoreExecutors.shutdownAndAwaitTermination(executorService, 1, TimeUnit.DAYS)) {
-            if (executorService instanceof ThreadPoolExecutor) {
-                ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executorService;
-                synchronized (this) {
-                    threadCounter += threadPoolExecutor.getCorePoolSize();
-                    logger.trace("destoried a executor, with thread:{}, availabled thread:{}",
-                            threadPoolExecutor.getCorePoolSize(), threadCounter);
-                }
-            }
         }
     }
 
@@ -184,20 +133,20 @@ public class AdaptiveExecutor {
         private int globalMaxThread;
         private IntUnaryOperator threadCountFunction;
         private ThreadFactory threadFactory;
-        private boolean callerRuns;
+        private long threadTimeout;
 
         public Builder withGlobalMaxThread(int globalMaxThread) {
             this.globalMaxThread = globalMaxThread;
             return this;
         }
 
-        public Builder enableCallerRunsPolicy() {
-            callerRuns = true;
+        public Builder withThreadStrategy(IntUnaryOperator func) {
+            this.threadCountFunction = func;
             return this;
         }
 
-        public Builder withThreadStrategy(IntUnaryOperator func) {
-            this.threadCountFunction = func;
+        public Builder threadTimeout(long time, TimeUnit unit) {
+            this.threadTimeout = unit.toMillis(time);
             return this;
         }
 
@@ -238,13 +187,16 @@ public class AdaptiveExecutor {
 
         public AdaptiveExecutor build() {
             ensure();
-            return new AdaptiveExecutor(globalMaxThread, threadCountFunction, threadFactory,
-                    callerRuns);
+            return new AdaptiveExecutor(globalMaxThread, threadTimeout, threadCountFunction,
+                    threadFactory);
         }
 
         private void ensure() {
             Preconditions.checkNotNull(threadCountFunction, "thread count function is null.");
             Preconditions.checkArgument(globalMaxThread > 0, "global max thread is illeagl.");
+            if (threadTimeout <= 0) {
+                threadTimeout = DEFAULT_TIMEOUT;
+            }
             if (threadFactory == null) {
                 threadFactory = new ThreadFactoryBuilder() //
                         .setNameFormat("pool-adaptive-thread-%d") //
@@ -269,8 +221,15 @@ public class AdaptiveExecutor {
         return cpuCoreAdaptive.get();
     }
 
-    public int getLeftThreadCount() {
-        return threadCounter;
+    public int getActiveThreadCount() {
+        return threadPoolExecutor.getActiveCount();
     }
 
+    /* (non-Javadoc)
+     * @see java.io.Closeable#close()
+     */
+    @Override
+    public void close() throws IOException {
+        MoreExecutors.shutdownAndAwaitTermination(threadPoolExecutor, 1, TimeUnit.DAYS);
+    }
 }
