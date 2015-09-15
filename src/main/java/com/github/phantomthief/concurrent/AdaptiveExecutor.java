@@ -221,8 +221,12 @@ public class AdaptiveExecutor implements Closeable {
         return cpuCoreAdaptive.get();
     }
 
-    public int getActiveThreadCount() {
+    public int getActiveCount() {
         return threadPoolExecutor.getActiveCount();
+    }
+
+    public int getLargestPoolSize() {
+        return threadPoolExecutor.getLargestPoolSize();
     }
 
     /* (non-Javadoc)
