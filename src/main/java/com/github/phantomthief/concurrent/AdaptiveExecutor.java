@@ -64,16 +64,25 @@ public class AdaptiveExecutor implements Closeable {
     }
 
     public final <K> void run(Collection<K> keys, Consumer<K> func) {
-        invokeAll(keys, i -> {
+        run(null, keys, func);
+    }
+
+    public final <K> void run(String threadSuffixName, Collection<K> keys, Consumer<K> func) {
+        invokeAll(threadSuffixName, keys, i -> {
             func.accept(i);
             return EMPTY_OBJECT;
         });
     }
 
     public final <K, V> Map<K, V> invokeAll(Collection<K> keys, Function<K, V> func) {
+        return invokeAll(null, keys, func);
+    }
+
+    public final <K, V> Map<K, V> invokeAll(String threadSuffixName, Collection<K> keys,
+            Function<K, V> func) {
         List<Callable<V>> calls = keys.stream().<Callable<V>> map(k -> () -> func.apply(k))
                 .collect(toList());
-        List<V> callResult = invokeAll(calls);
+        List<V> callResult = invokeAll(threadSuffixName, calls);
         Iterator<V> iterator = callResult.iterator();
         Map<K, V> result = new HashMap<>();
         for (K key : keys) {
@@ -89,6 +98,10 @@ public class AdaptiveExecutor implements Closeable {
     }
 
     public final <V> List<V> invokeAll(List<Callable<V>> calls) {
+        return invokeAll(null, calls);
+    }
+
+    public final <V> List<V> invokeAll(String threadSuffixName, List<Callable<V>> calls) {
         if (calls == null || calls.isEmpty()) {
             return Collections.emptyList();
         }
@@ -99,15 +112,27 @@ public class AdaptiveExecutor implements Closeable {
         } else {
             executorService = threadPoolExecutor;
         }
+        Thread callersThread = Thread.currentThread();
         List<Callable<List<V>>> packed = new ArrayList<>();
         for (List<Callable<V>> list : Iterables.partition(calls,
                 (int) Math.ceil((double) calls.size() / thread))) {
             packed.add(() -> {
-                List<V> result = new ArrayList<>(list.size());
-                for (Callable<V> callable : list) {
-                    result.add(callable.call());
+                String origThreadName = null;
+                Thread runningThread = Thread.currentThread();
+                if (runningThread != callersThread) {
+                    origThreadName = renameCurrentThread(threadSuffixName);
                 }
-                return result;
+                try {
+                    List<V> result = new ArrayList<>(list.size());
+                    for (Callable<V> callable : list) {
+                        result.add(callable.call());
+                    }
+                    return result;
+                } finally {
+                    if (origThreadName != null) {
+                        Thread.currentThread().setName(origThreadName);
+                    }
+                }
             });
         }
 
@@ -118,6 +143,16 @@ public class AdaptiveExecutor implements Closeable {
             logger.error("Ops.", e);
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * @param threadNameSuffix
+     */
+    private String renameCurrentThread(String threadNameSuffix) {
+        Thread currentThread = Thread.currentThread();
+        String originalName = currentThread.getName();
+        currentThread.setName(originalName + "-" + threadNameSuffix);
+        return originalName;
     }
 
     private final <V> Stream<V> futureGet(Future<List<V>> future) {
@@ -204,7 +239,6 @@ public class AdaptiveExecutor implements Closeable {
                         .build();
             }
         }
-
     }
 
     public static final Builder newBuilder() {
