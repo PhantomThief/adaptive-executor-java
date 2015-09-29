@@ -3,10 +3,14 @@
  */
 package com.github.phantomthief.concurrent;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Iterables.partition;
+import static java.util.concurrent.TimeUnit.DAYS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,10 +32,9 @@ import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.Stream;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
-import com.google.common.collect.Iterables;
+import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -39,12 +42,12 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 /**
  * @author w.vela
  */
-public class AdaptiveExecutor implements Closeable {
+public class AdaptiveExecutor implements AutoCloseable {
 
     private static org.slf4j.Logger logger = org.slf4j.LoggerFactory
             .getLogger(AdaptiveExecutor.class);
 
-    private static final long DEFAULT_TIMEOUT = TimeUnit.SECONDS.toMillis(60);
+    private static final long DEFAULT_TIMEOUT = SECONDS.toMillis(60);
     private static final Object EMPTY_OBJECT = new Object();
     private static final CallerRunsPolicy CALLER_RUNS_POLICY = new CallerRunsPolicy();
     private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = MoreExecutors
@@ -59,8 +62,7 @@ public class AdaptiveExecutor implements Closeable {
             ThreadFactory threadFactory) {
         this.threadCountFunction = threadCountFunction;
         this.threadPoolExecutor = new ThreadPoolExecutor(0, globalMaxThread, threadTimeout,
-                TimeUnit.MILLISECONDS, new SynchronousQueue<Runnable>(), threadFactory,
-                CALLER_RUNS_POLICY);
+                MILLISECONDS, new SynchronousQueue<Runnable>(), threadFactory, CALLER_RUNS_POLICY);
     }
 
     public final <K> void run(Collection<K> keys, Consumer<K> func) {
@@ -114,7 +116,7 @@ public class AdaptiveExecutor implements Closeable {
         }
         Thread callersThread = Thread.currentThread();
         List<Callable<List<V>>> packed = new ArrayList<>();
-        for (List<Callable<V>> list : Iterables.partition(calls,
+        for (List<Callable<V>> list : partition(calls,
                 (int) Math.ceil((double) calls.size() / thread))) {
             packed.add(() -> {
                 String origThreadName = null;
@@ -130,7 +132,7 @@ public class AdaptiveExecutor implements Closeable {
                     return result;
                 } finally {
                     if (origThreadName != null) {
-                        Thread.currentThread().setName(origThreadName);
+                        runningThread.setName(origThreadName);
                     }
                 }
             });
@@ -159,7 +161,7 @@ public class AdaptiveExecutor implements Closeable {
         try {
             return future.get().stream();
         } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 
@@ -227,8 +229,9 @@ public class AdaptiveExecutor implements Closeable {
         }
 
         private void ensure() {
-            Preconditions.checkNotNull(threadCountFunction, "thread count function is null.");
-            Preconditions.checkArgument(globalMaxThread > 0, "global max thread is illeagl.");
+            checkNotNull(threadCountFunction, "thread count function is null.");
+            checkArgument(globalMaxThread > 0, "global max thread is illeagl.");
+
             if (threadTimeout <= 0) {
                 threadTimeout = DEFAULT_TIMEOUT;
             }
@@ -267,7 +270,7 @@ public class AdaptiveExecutor implements Closeable {
      * @see java.io.Closeable#close()
      */
     @Override
-    public void close() throws IOException {
-        MoreExecutors.shutdownAndAwaitTermination(threadPoolExecutor, 1, TimeUnit.DAYS);
+    public void close() {
+        MoreExecutors.shutdownAndAwaitTermination(threadPoolExecutor, 1, DAYS);
     }
 }
