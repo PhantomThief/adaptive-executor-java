@@ -3,6 +3,7 @@
  */
 package com.github.phantomthief.concurrent;
 
+import static com.github.phantomthief.util.MoreSuppliers.lazy;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Iterables.partition;
@@ -32,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.Stream;
 
+import com.github.phantomthief.util.MoreSuppliers.CloseableSupplier;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
@@ -53,7 +55,7 @@ public class AdaptiveExecutor implements AutoCloseable {
     private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = MoreExecutors
             .newDirectExecutorService();
 
-    private final ThreadPoolExecutor threadPoolExecutor;
+    private final CloseableSupplier<ThreadPoolExecutor> threadPoolExecutor;
     private final IntUnaryOperator threadCountFunction;
 
     private AdaptiveExecutor(int globalMaxThread, //
@@ -61,8 +63,9 @@ public class AdaptiveExecutor implements AutoCloseable {
             IntUnaryOperator threadCountFunction, //
             ThreadFactory threadFactory) {
         this.threadCountFunction = threadCountFunction;
-        this.threadPoolExecutor = new ThreadPoolExecutor(0, globalMaxThread, threadTimeout,
-                MILLISECONDS, new SynchronousQueue<Runnable>(), threadFactory, CALLER_RUNS_POLICY);
+        this.threadPoolExecutor = lazy(
+                () -> new ThreadPoolExecutor(0, globalMaxThread, threadTimeout, MILLISECONDS,
+                        new SynchronousQueue<Runnable>(), threadFactory, CALLER_RUNS_POLICY));
     }
 
     public final <K> void run(Collection<K> keys, Consumer<K> func) {
@@ -112,7 +115,7 @@ public class AdaptiveExecutor implements AutoCloseable {
         if (thread == 1) {
             executorService = DIRECT_EXECUTOR_SERVICE;
         } else {
-            executorService = threadPoolExecutor;
+            executorService = threadPoolExecutor.get();
         }
         Thread callersThread = Thread.currentThread();
         List<Callable<List<V>>> packed = new ArrayList<>();
@@ -259,11 +262,11 @@ public class AdaptiveExecutor implements AutoCloseable {
     }
 
     public int getActiveCount() {
-        return threadPoolExecutor.getActiveCount();
+        return threadPoolExecutor.map(ThreadPoolExecutor::getActiveCount).orElse(-1);
     }
 
     public int getLargestPoolSize() {
-        return threadPoolExecutor.getLargestPoolSize();
+        return threadPoolExecutor.map(ThreadPoolExecutor::getLargestPoolSize).orElse(-1);
     }
 
     /* (non-Javadoc)
@@ -271,6 +274,7 @@ public class AdaptiveExecutor implements AutoCloseable {
      */
     @Override
     public void close() {
-        MoreExecutors.shutdownAndAwaitTermination(threadPoolExecutor, 1, DAYS);
+        threadPoolExecutor
+                .tryClose(exec -> MoreExecutors.shutdownAndAwaitTermination(exec, 1, DAYS));
     }
 }
