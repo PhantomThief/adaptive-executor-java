@@ -1,20 +1,29 @@
 /**
- * 
+ *
  */
 package com.github.phantomthief.concurrent;
 
 import static com.github.phantomthief.util.MoreSuppliers.lazy;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Suppliers.memoize;
+import static com.google.common.base.Throwables.propagate;
 import static com.google.common.collect.Iterables.partition;
+import static com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService;
+import static com.google.common.util.concurrent.MoreExecutors.shutdownAndAwaitTermination;
+import static java.lang.Math.ceil;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static java.lang.Thread.currentThread;
+import static java.util.Collections.emptyList;
 import static java.util.concurrent.TimeUnit.DAYS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
+import static org.slf4j.LoggerFactory.getLogger;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -33,12 +42,11 @@ import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+
 import com.github.phantomthief.util.MoreSuppliers.CloseableSupplier;
 import com.google.common.base.Supplier;
-import com.google.common.base.Suppliers;
-import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
@@ -46,26 +54,32 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
  */
 public class AdaptiveExecutor implements AutoCloseable {
 
-    private static org.slf4j.Logger logger = org.slf4j.LoggerFactory
-            .getLogger(AdaptiveExecutor.class);
-
     private static final long DEFAULT_TIMEOUT = SECONDS.toMillis(60);
     private static final Object EMPTY_OBJECT = new Object();
     private static final CallerRunsPolicy CALLER_RUNS_POLICY = new CallerRunsPolicy();
-    private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = MoreExecutors
-            .newDirectExecutorService();
-
+    private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = newDirectExecutorService();
+    private static Logger logger = getLogger(AdaptiveExecutor.class);
+    private static Supplier<AdaptiveExecutor> cpuCoreAdaptive = memoize(
+            AdaptiveExecutor.newBuilder()
+                    .withGlobalMaxThread(Runtime.getRuntime().availableProcessors())
+                    .maxThreadAsPossible(Runtime.getRuntime().availableProcessors())::build);
     private final CloseableSupplier<ThreadPoolExecutor> threadPoolExecutor;
     private final IntUnaryOperator threadCountFunction;
 
-    private AdaptiveExecutor(int globalMaxThread, //
-            long threadTimeout, //
-            IntUnaryOperator threadCountFunction, //
-            ThreadFactory threadFactory) {
+    private AdaptiveExecutor(int globalMaxThread, long threadTimeout,
+            IntUnaryOperator threadCountFunction, ThreadFactory threadFactory) {
         this.threadCountFunction = threadCountFunction;
         this.threadPoolExecutor = lazy(
                 () -> new ThreadPoolExecutor(0, globalMaxThread, threadTimeout, MILLISECONDS,
-                        new SynchronousQueue<Runnable>(), threadFactory, CALLER_RUNS_POLICY));
+                        new SynchronousQueue<>(), threadFactory, CALLER_RUNS_POLICY));
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
+    }
+
+    public static AdaptiveExecutor getCpuCoreAdpativeExecutor() {
+        return cpuCoreAdaptive.get();
     }
 
     public final <K> void run(Collection<K> keys, Consumer<K> func) {
@@ -85,7 +99,7 @@ public class AdaptiveExecutor implements AutoCloseable {
 
     public final <K, V> Map<K, V> invokeAll(String threadSuffixName, Collection<K> keys,
             Function<K, V> func) {
-        List<Callable<V>> calls = keys.stream().<Callable<V>> map(k -> () -> func.apply(k))
+        List<Callable<V>> calls = keys.stream().<Callable<V>>map(k -> () -> func.apply(k))
                 .collect(toList());
         List<V> callResult = invokeAll(threadSuffixName, calls);
         Iterator<V> iterator = callResult.iterator();
@@ -108,22 +122,22 @@ public class AdaptiveExecutor implements AutoCloseable {
 
     public final <V> List<V> invokeAll(String threadSuffixName, List<Callable<V>> calls) {
         if (calls == null || calls.isEmpty()) {
-            return Collections.emptyList();
+            return emptyList();
         }
         ExecutorService executorService;
-        int thread = Math.max(1, threadCountFunction.applyAsInt(calls.size()));
+        int thread = max(1, threadCountFunction.applyAsInt(calls.size()));
         if (thread == 1) {
             executorService = DIRECT_EXECUTOR_SERVICE;
         } else {
             executorService = threadPoolExecutor.get();
         }
-        Thread callersThread = Thread.currentThread();
+        Thread callersThread = currentThread();
         List<Callable<List<V>>> packed = new ArrayList<>();
         for (List<Callable<V>> list : partition(calls,
-                (int) Math.ceil((double) calls.size() / thread))) {
+                (int) ceil((double) calls.size() / thread))) {
             packed.add(() -> {
                 String origThreadName = null;
-                Thread runningThread = Thread.currentThread();
+                Thread runningThread = currentThread();
                 if (runningThread != callersThread) {
                     origThreadName = renameCurrentThread(threadSuffixName);
                 }
@@ -146,26 +160,38 @@ public class AdaptiveExecutor implements AutoCloseable {
             return invokeAll.stream().flatMap(this::futureGet).collect(toList());
         } catch (Throwable e) {
             logger.error("Ops.", e);
-            return Collections.emptyList();
+            return emptyList();
         }
     }
 
-    /**
-     * @param threadNameSuffix
-     */
     private String renameCurrentThread(String threadNameSuffix) {
-        Thread currentThread = Thread.currentThread();
+        Thread currentThread = currentThread();
         String originalName = currentThread.getName();
         currentThread.setName(originalName + "-" + threadNameSuffix);
         return originalName;
     }
 
-    private final <V> Stream<V> futureGet(Future<List<V>> future) {
+    private <V> Stream<V> futureGet(Future<List<V>> future) {
         try {
             return future.get().stream();
         } catch (InterruptedException | ExecutionException e) {
-            throw Throwables.propagate(e);
+            throw propagate(e);
         }
+    }
+
+    public int getActiveCount() {
+        return threadPoolExecutor.map(ThreadPoolExecutor::getActiveCount).orElse(-1);
+    }
+
+    public int getLargestPoolSize() {
+        return threadPoolExecutor.map(ThreadPoolExecutor::getLargestPoolSize).orElse(-1);
+    }
+
+    /* (non-Javadoc)
+     * @see java.io.Closeable#close()
+     */
+    @Override public void close() {
+        threadPoolExecutor.tryClose(exec -> shutdownAndAwaitTermination(exec, 1, DAYS));
     }
 
     public static final class Builder {
@@ -195,7 +221,7 @@ public class AdaptiveExecutor implements AutoCloseable {
          * @return
          */
         public Builder maxThreadAsPossible(int maxThreadPerOp) {
-            this.threadCountFunction = i -> Math.min(maxThreadPerOp, i);
+            this.threadCountFunction = i -> min(maxThreadPerOp, i);
             return this;
         }
 
@@ -210,8 +236,8 @@ public class AdaptiveExecutor implements AutoCloseable {
          * @return
          */
         public Builder maxThreadAsPossible(int minMultiThreadThreshold, int maxThreadPerOp) {
-            this.threadCountFunction = i -> i <= minMultiThreadThreshold ? 1 : Math
-                    .min(maxThreadPerOp, i);
+            this.threadCountFunction = i ->
+                    i <= minMultiThreadThreshold ? 1 : min(maxThreadPerOp, i);
             return this;
         }
 
@@ -221,7 +247,7 @@ public class AdaptiveExecutor implements AutoCloseable {
          * @return
          */
         public Builder adaptiveThread(int opPerThread, int maxThreadPerOp) {
-            this.threadCountFunction = i -> Math.min(maxThreadPerOp, i / opPerThread);
+            this.threadCountFunction = i -> min(maxThreadPerOp, i / opPerThread);
             return this;
         }
 
@@ -245,36 +271,5 @@ public class AdaptiveExecutor implements AutoCloseable {
                         .build();
             }
         }
-    }
-
-    public static final Builder newBuilder() {
-        return new Builder();
-    }
-
-    private static Supplier<AdaptiveExecutor> cpuCoreAdaptive = Suppliers
-            .memoize(AdaptiveExecutor.newBuilder() //
-                    .withGlobalMaxThread(Runtime.getRuntime().availableProcessors()) //
-                    .maxThreadAsPossible(Runtime.getRuntime().availableProcessors()) //
-                    ::build);
-
-    public static final AdaptiveExecutor getCpuCoreAdpativeExecutor() {
-        return cpuCoreAdaptive.get();
-    }
-
-    public int getActiveCount() {
-        return threadPoolExecutor.map(ThreadPoolExecutor::getActiveCount).orElse(-1);
-    }
-
-    public int getLargestPoolSize() {
-        return threadPoolExecutor.map(ThreadPoolExecutor::getLargestPoolSize).orElse(-1);
-    }
-
-    /* (non-Javadoc)
-     * @see java.io.Closeable#close()
-     */
-    @Override
-    public void close() {
-        threadPoolExecutor
-                .tryClose(exec -> MoreExecutors.shutdownAndAwaitTermination(exec, 1, DAYS));
     }
 }
