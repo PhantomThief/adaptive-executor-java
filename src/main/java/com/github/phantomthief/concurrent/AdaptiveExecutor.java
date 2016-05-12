@@ -57,19 +57,19 @@ public class AdaptiveExecutor implements AutoCloseable {
     private static final CallerRunsPolicy CALLER_RUNS_POLICY = new CallerRunsPolicy();
     private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = newDirectExecutorService();
     private static Logger logger = getLogger(AdaptiveExecutor.class);
-    private static CloseableSupplier<AdaptiveExecutor> cpuCoreAdaptive = lazy(AdaptiveExecutor
-            .newBuilder() //
-            .withGlobalMaxThread(Runtime.getRuntime().availableProcessors()) //
-            .maxThreadAsPossible(Runtime.getRuntime().availableProcessors())::build);
+    private static CloseableSupplier<AdaptiveExecutor> cpuCoreAdaptive = lazy(
+            AdaptiveExecutor.newBuilder() //
+                    .withGlobalMaxThread(Runtime.getRuntime().availableProcessors()) //
+                    .maxThreadAsPossible(Runtime.getRuntime().availableProcessors())::build);
     private final CloseableSupplier<ThreadPoolExecutor> threadPoolExecutor;
     private final IntUnaryOperator threadCountFunction;
 
     private AdaptiveExecutor(int globalMaxThread, long threadTimeout,
             IntUnaryOperator threadCountFunction, ThreadFactory threadFactory) {
         this.threadCountFunction = threadCountFunction;
-        this.threadPoolExecutor = lazy(() -> new ThreadPoolExecutor(0, globalMaxThread,
-                threadTimeout, MILLISECONDS, new SynchronousQueue<>(), threadFactory,
-                CALLER_RUNS_POLICY));
+        this.threadPoolExecutor = lazy(
+                () -> new ThreadPoolExecutor(0, globalMaxThread, threadTimeout, MILLISECONDS,
+                        new SynchronousQueue<>(), threadFactory, CALLER_RUNS_POLICY));
     }
 
     public static Builder newBuilder() {
@@ -131,7 +131,8 @@ public class AdaptiveExecutor implements AutoCloseable {
         }
         Thread callersThread = currentThread();
         List<Callable<List<V>>> packed = new ArrayList<>();
-        for (List<Callable<V>> list : partition(calls, (int) ceil((double) calls.size() / thread))) {
+        for (List<Callable<V>> list : partition(calls,
+                (int) ceil((double) calls.size() / thread))) {
             packed.add(() -> {
                 String origThreadName = null;
                 Thread runningThread = currentThread();
@@ -189,6 +190,9 @@ public class AdaptiveExecutor implements AutoCloseable {
         threadPoolExecutor.tryClose(exec -> shutdownAndAwaitTermination(exec, 1, DAYS));
     }
 
+    /**
+     *
+     */
     public static final class Builder {
 
         private int globalMaxThread;
