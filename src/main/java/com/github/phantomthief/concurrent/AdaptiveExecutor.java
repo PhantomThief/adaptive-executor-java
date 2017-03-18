@@ -6,7 +6,6 @@ package com.github.phantomthief.concurrent;
 import static com.github.phantomthief.util.MoreSuppliers.lazy;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Throwables.propagate;
 import static com.google.common.collect.Iterables.partition;
 import static com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService;
 import static com.google.common.util.concurrent.MoreExecutors.shutdownAndAwaitTermination;
@@ -173,7 +172,7 @@ public class AdaptiveExecutor implements AutoCloseable {
         try {
             return future.get().stream();
         } catch (InterruptedException | ExecutionException e) {
-            throw propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
