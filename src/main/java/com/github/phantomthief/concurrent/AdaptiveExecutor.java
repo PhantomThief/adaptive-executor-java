@@ -38,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -60,15 +61,20 @@ public class AdaptiveExecutor implements AutoCloseable {
             AdaptiveExecutor.newBuilder() //
                     .withGlobalMaxThread(Runtime.getRuntime().availableProcessors()) //
                     .maxThreadAsPossible(Runtime.getRuntime().availableProcessors())::build);
-    private final CloseableSupplier<ThreadPoolExecutor> threadPoolExecutor;
+    private final CloseableSupplier<ExecutorService> threadPoolExecutor;
     private final IntUnaryOperator threadCountFunction;
 
-    private AdaptiveExecutor(int globalMaxThread, long threadTimeout,
-            IntUnaryOperator threadCountFunction, ThreadFactory threadFactory) {
-        this.threadCountFunction = threadCountFunction;
-        this.threadPoolExecutor = lazy(
-                () -> new ThreadPoolExecutor(0, globalMaxThread, threadTimeout, MILLISECONDS,
-                        new SynchronousQueue<>(), threadFactory, CALLER_RUNS_POLICY));
+    private AdaptiveExecutor(Builder builder) {
+        this.threadCountFunction = builder.threadCountFunction;
+        this.threadPoolExecutor = lazy(() -> {
+            ExecutorService pool = new ThreadPoolExecutor(0, builder.globalMaxThread,
+                    builder.threadTimeout, MILLISECONDS, new SynchronousQueue<>(),
+                    builder.threadFactory, CALLER_RUNS_POLICY);
+            if (builder.threadPoolDecorator != null) {
+                pool = builder.threadPoolDecorator.apply(pool);
+            }
+            return pool;
+        });
     }
 
     public static Builder newBuilder() {
@@ -176,14 +182,6 @@ public class AdaptiveExecutor implements AutoCloseable {
         }
     }
 
-    public int getActiveCount() {
-        return threadPoolExecutor.map(ThreadPoolExecutor::getActiveCount).orElse(-1);
-    }
-
-    public int getLargestPoolSize() {
-        return threadPoolExecutor.map(ThreadPoolExecutor::getLargestPoolSize).orElse(-1);
-    }
-
     @Override
     public void close() {
         threadPoolExecutor.tryClose(exec -> shutdownAndAwaitTermination(exec, 1, DAYS));
@@ -198,6 +196,12 @@ public class AdaptiveExecutor implements AutoCloseable {
         private IntUnaryOperator threadCountFunction;
         private ThreadFactory threadFactory;
         private long threadTimeout;
+        private UnaryOperator<ExecutorService> threadPoolDecorator;
+
+        public Builder threadPoolDecorator(UnaryOperator<ExecutorService> decorator) {
+            this.threadPoolDecorator = decorator;
+            return this;
+        }
 
         public Builder withGlobalMaxThread(int globalMaxThread) {
             this.globalMaxThread = globalMaxThread;
@@ -248,8 +252,7 @@ public class AdaptiveExecutor implements AutoCloseable {
 
         public AdaptiveExecutor build() {
             ensure();
-            return new AdaptiveExecutor(globalMaxThread, threadTimeout, threadCountFunction,
-                    threadFactory);
+            return new AdaptiveExecutor(this);
         }
 
         private void ensure() {
