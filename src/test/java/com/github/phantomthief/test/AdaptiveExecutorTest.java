@@ -24,7 +24,6 @@ import org.junit.Test;
 
 import com.github.phantomthief.concurrent.AdaptiveExecutor;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * @author w.vela
@@ -56,7 +55,6 @@ public class AdaptiveExecutorTest {
         AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
                 .withGlobalMaxThread(10) //
                 .maxThreadAsPossible(5, 8) //
-                .threadFactory(Executors.defaultThreadFactory()) //
                 .build();
         ExecutorService executorService = Executors.newFixedThreadPool(20);
         for (int i = 0; i < 100; i++) {
@@ -112,8 +110,6 @@ public class AdaptiveExecutorTest {
     public void testName() {
         AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
                 .withGlobalMaxThread(10) //
-                .threadFactory(new ThreadFactoryBuilder().setNameFormat("mytest-%d") //
-                        .build())//
                 .adaptiveThread(5, 8) //
                 .build();
         ExecutorService executorService = Executors.newFixedThreadPool(20);

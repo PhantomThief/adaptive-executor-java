@@ -13,6 +13,7 @@ import static java.lang.Math.ceil;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Thread.currentThread;
+import static java.time.Duration.ofMillis;
 import static java.util.Collections.emptyList;
 import static java.util.concurrent.TimeUnit.DAYS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -31,14 +32,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
-import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -66,15 +65,9 @@ public class AdaptiveExecutor implements AutoCloseable {
 
     private AdaptiveExecutor(Builder builder) {
         this.threadCountFunction = builder.threadCountFunction;
-        this.threadPoolExecutor = lazy(() -> {
-            ExecutorService pool = new ThreadPoolExecutor(0, builder.globalMaxThread,
-                    builder.threadTimeout, MILLISECONDS, new SynchronousQueue<>(),
-                    builder.threadFactory, CALLER_RUNS_POLICY);
-            if (builder.threadPoolDecorator != null) {
-                pool = builder.threadPoolDecorator.apply(pool);
-            }
-            return pool;
-        });
+        this.threadPoolExecutor = lazy(() -> builder.executorFactory.create(0,
+                builder.globalMaxThread, ofMillis(builder.threadTimeout), new SynchronousQueue<>(),
+                CALLER_RUNS_POLICY));
     }
 
     public static Builder newBuilder() {
@@ -194,12 +187,11 @@ public class AdaptiveExecutor implements AutoCloseable {
 
         private int globalMaxThread;
         private IntUnaryOperator threadCountFunction;
-        private ThreadFactory threadFactory;
         private long threadTimeout;
-        private UnaryOperator<ExecutorService> threadPoolDecorator;
+        private ExecutorFactory executorFactory;
 
-        public Builder threadPoolDecorator(UnaryOperator<ExecutorService> decorator) {
-            this.threadPoolDecorator = decorator;
+        public Builder executorFactory(ExecutorFactory factory) {
+            this.executorFactory = factory;
             return this;
         }
 
@@ -223,11 +215,6 @@ public class AdaptiveExecutor implements AutoCloseable {
          */
         public Builder maxThreadAsPossible(int maxThreadPerOp) {
             this.threadCountFunction = i -> min(maxThreadPerOp, i);
-            return this;
-        }
-
-        public Builder threadFactory(ThreadFactory threadFactory) {
-            this.threadFactory = threadFactory;
             return this;
         }
 
@@ -262,11 +249,16 @@ public class AdaptiveExecutor implements AutoCloseable {
             if (threadTimeout <= 0) {
                 threadTimeout = DEFAULT_TIMEOUT;
             }
-            if (threadFactory == null) {
-                threadFactory = new ThreadFactoryBuilder() //
-                        .setNameFormat("pool-adaptive-thread-%d") //
-                        .setUncaughtExceptionHandler((t, e) -> logger.error("Ops.", e)) //
-                        .build();
+            if (executorFactory == null) {
+                executorFactory = (corePoolSize, maxPoolThread, keepAliveTime, workQueue,
+                        policy) -> new ThreadPoolExecutor(corePoolSize, maxPoolThread,
+                                keepAliveTime.toMillis(), MILLISECONDS, new SynchronousQueue<>(),
+                                new ThreadFactoryBuilder() //
+                                        .setNameFormat("pool-adaptive-thread-%d") //
+                                        .setUncaughtExceptionHandler(
+                                                (t, e) -> logger.error("Ops.", e)) //
+                                        .build(),
+                                CALLER_RUNS_POLICY);
             }
         }
     }
