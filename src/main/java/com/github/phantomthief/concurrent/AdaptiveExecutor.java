@@ -1,6 +1,3 @@
-/**
- *
- */
 package com.github.phantomthief.concurrent;
 
 import static com.github.phantomthief.util.MoreSuppliers.lazy;

@@ -18,8 +18,9 @@
         <slf4j-api.version>1.7.21</slf4j-api.version>
         <guava.version>20.0</guava.version>
         <more-lambdas.version>0.1.8</more-lambdas.version>
-        <junit.version>4.12</junit.version>
-        <logback-classic.version>1.1.7</logback-classic.version>
+        <junit-jupiter.version>5.0.1</junit-jupiter.version>
+        <logback-classic.version>1.1.8</logback-classic.version>
+        <junit-platform.version>1.0.1</junit-platform.version>
 
         <coveralls-maven-plugin.version>4.3.0</coveralls-maven-plugin.version>
         <jacoco-maven-plugin.version>0.7.9</jacoco-maven-plugin.version>
@@ -27,6 +28,7 @@
         <maven-javadoc-plugin.version>2.10.4</maven-javadoc-plugin.version>
         <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
         <maven-source-plugin.version>3.0.1</maven-source-plugin.version>
+        <maven-surefire-plugin.version>2.19.1</maven-surefire-plugin.version>
     </properties>
 
     <developers>
@@ -67,9 +69,9 @@
         </dependency>
 
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>${junit.version}</version>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${junit-jupiter.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -82,6 +84,22 @@
 
     <build>
         <plugins>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.junit.platform</groupId>
+                        <artifactId>junit-platform-surefire-provider</artifactId>
+                        <version>${junit-platform.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.junit.jupiter</groupId>
+                        <artifactId>junit-jupiter-engine</artifactId>
+                        <version>${junit-jupiter.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>

@@ -14,7 +14,7 @@ adaptive-executor-java [![Build Status](https://travis-ci.org/PhantomThief/adapt
 <dependency>
     <groupId>com.github.phantomthief</groupId>
     <artifactId>adaptive-executor</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.5-SNAPSHOT</version>
 </dependency>
 ```
 

@@ -1,11 +1,8 @@
-/**
- * 
- */
 package com.github.phantomthief.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -20,7 +17,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import com.github.phantomthief.concurrent.AdaptiveExecutor;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -28,10 +25,10 @@ import com.google.common.util.concurrent.MoreExecutors;
 /**
  * @author w.vela
  */
-public class AdaptiveExecutorTest {
+class AdaptiveExecutorTest {
 
     @Test
-    public void test() {
+    void test() {
         AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
                 .withGlobalMaxThread(10) //
                 .adaptiveThread(5, 8) //
@@ -51,7 +48,7 @@ public class AdaptiveExecutorTest {
     }
 
     @Test
-    public void test2() {
+    void test2() {
         AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
                 .withGlobalMaxThread(10) //
                 .maxThreadAsPossible(5, 8) //
@@ -72,13 +69,13 @@ public class AdaptiveExecutorTest {
     }
 
     @Test
-    public void test3() {
+    void test3() {
         AdaptiveExecutor.getCpuCoreAdpativeExecutor().invokeAll(null);
         AdaptiveExecutor.getCpuCoreAdpativeExecutor().invokeAll(Collections.emptyList());
     }
 
     @Test
-    public void test4() {
+    void test4() {
         AdaptiveExecutor.getCpuCoreAdpativeExecutor().run(Collections.singleton(1),
                 this::exception);
         AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
@@ -94,20 +91,26 @@ public class AdaptiveExecutorTest {
     }
 
     @Test
-    public void testFastFail() {
+    void testFastFail() {
         try {
             AdaptiveExecutor.newBuilder().build();
-        } catch (NullPointerException e) {}
+        } catch (NullPointerException e) {
+            // do nothing
+        }
         try {
             AdaptiveExecutor.newBuilder().withGlobalMaxThread(1).build();
-        } catch (NullPointerException e) {}
+        } catch (NullPointerException e) {
+            // do nothing
+        }
         try {
             AdaptiveExecutor.newBuilder().withGlobalMaxThread(1).withThreadStrategy(i -> 1).build();
-        } catch (NullPointerException e) {}
+        } catch (NullPointerException e) {
+            // do nothing
+        }
     }
 
     @Test
-    public void testName() {
+    void testName() {
         AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
                 .withGlobalMaxThread(10) //
                 .adaptiveThread(5, 8) //
@@ -143,5 +146,4 @@ public class AdaptiveExecutorTest {
     private String exception(Integer i) {
         throw new RuntimeException();
     }
-
 }
