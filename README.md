@@ -20,7 +20,7 @@ adaptive-executor-java [![Build Status](https://travis-ci.org/PhantomThief/adapt
 
 ```Java
 // 声明executor
-AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
+AdaptiveExecutor executor = AdaptiveExecutor.newBuilder()
         .withGlobalMaxThread(10) // 全局最大线程数10
         .adaptiveThread(5, 8) // 每5个任务使用一个线程，每次提交任务最多使用8个线程
         .maxThreadAsPossible(6) // 每次提交任务最多使用6个线程，尽可能多的使用多线程（这个和上面策略二选一）
@@ -41,7 +41,7 @@ executor.run(tasks, System.out::println); // 并发执行，无返回值
 例如：
 
 ```Java
-AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
+AdaptiveExecutor executor = AdaptiveExecutor.newBuilder()
         .withGlobalMaxThread(10) // 全局最大线程数10
         .withThreadStrategy(keySize -> keySize) // 传入多少key，就建立多少线程，和maxThreadAsPossible(Integer.MAX_VALUE)效果相同
         .build();

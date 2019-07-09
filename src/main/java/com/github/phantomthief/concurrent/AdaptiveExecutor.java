@@ -54,8 +54,8 @@ public class AdaptiveExecutor implements AutoCloseable {
     private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = newDirectExecutorService();
     private static Logger logger = getLogger(AdaptiveExecutor.class);
     private static CloseableSupplier<AdaptiveExecutor> cpuCoreAdaptive = lazy(
-            AdaptiveExecutor.newBuilder() //
-                    .withGlobalMaxThread(Runtime.getRuntime().availableProcessors()) //
+            AdaptiveExecutor.newBuilder()
+                    .withGlobalMaxThread(Runtime.getRuntime().availableProcessors())
                     .maxThreadAsPossible(Runtime.getRuntime().availableProcessors())::build);
     private final CloseableSupplier<ExecutorService> threadPoolExecutor;
     private final IntUnaryOperator threadCountFunction;
@@ -250,10 +250,10 @@ public class AdaptiveExecutor implements AutoCloseable {
                 executorFactory = (corePoolSize, maxPoolThread, keepAliveTime, workQueue,
                         policy) -> new ThreadPoolExecutor(corePoolSize, maxPoolThread,
                                 keepAliveTime.toMillis(), MILLISECONDS, new SynchronousQueue<>(),
-                                new ThreadFactoryBuilder() //
-                                        .setNameFormat("pool-adaptive-thread-%d") //
+                                new ThreadFactoryBuilder()
+                                        .setNameFormat("pool-adaptive-thread-%d")
                                         .setUncaughtExceptionHandler(
-                                                (t, e) -> logger.error("Ops.", e)) //
+                                                (t, e) -> logger.error("Ops.", e))
                                         .build(),
                                 CALLER_RUNS_POLICY);
             }

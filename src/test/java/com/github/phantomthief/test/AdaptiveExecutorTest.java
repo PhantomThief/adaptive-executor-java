@@ -29,9 +29,9 @@ class AdaptiveExecutorTest {
 
     @Test
     void test() {
-        AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
-                .withGlobalMaxThread(10) //
-                .adaptiveThread(5, 8) //
+        AdaptiveExecutor executor = AdaptiveExecutor.newBuilder()
+                .withGlobalMaxThread(10)
+                .adaptiveThread(5, 8)
                 .build();
         ExecutorService executorService = Executors.newFixedThreadPool(20);
         for (int i = 0; i < 100; i++) {
@@ -49,9 +49,9 @@ class AdaptiveExecutorTest {
 
     @Test
     void test2() {
-        AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
-                .withGlobalMaxThread(10) //
-                .maxThreadAsPossible(5, 8) //
+        AdaptiveExecutor executor = AdaptiveExecutor.newBuilder()
+                .withGlobalMaxThread(10)
+                .maxThreadAsPossible(5, 8)
                 .build();
         ExecutorService executorService = Executors.newFixedThreadPool(20);
         for (int i = 0; i < 100; i++) {
@@ -78,8 +78,8 @@ class AdaptiveExecutorTest {
     void test4() {
         AdaptiveExecutor.getCpuCoreAdpativeExecutor().run(Collections.singleton(1),
                 this::exception);
-        AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
-                .withGlobalMaxThread(10) //
+        AdaptiveExecutor executor = AdaptiveExecutor.newBuilder()
+                .withGlobalMaxThread(10)
                 .withThreadStrategy(i -> i) //)
                 .build();
         List<Integer> tasks = Arrays.asList(1, 2, 3);
@@ -111,9 +111,9 @@ class AdaptiveExecutorTest {
 
     @Test
     void testName() {
-        AdaptiveExecutor executor = AdaptiveExecutor.newBuilder() //
-                .withGlobalMaxThread(10) //
-                .adaptiveThread(5, 8) //
+        AdaptiveExecutor executor = AdaptiveExecutor.newBuilder()
+                .withGlobalMaxThread(10)
+                .adaptiveThread(5, 8)
                 .build();
         ExecutorService executorService = Executors.newFixedThreadPool(20);
         Pattern pattern = Pattern.compile("mytest-\\d+-abc");
@@ -138,7 +138,7 @@ class AdaptiveExecutorTest {
         try {
             Thread.sleep(10);
         } catch (InterruptedException e) {
-            //
+
         }
         return i + "";
     }
