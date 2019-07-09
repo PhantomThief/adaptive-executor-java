@@ -46,9 +46,9 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:https://github.com/PhantomThief/adaptive-executor-java.git</connection>
+        <connection>scm:git:git@github.com:PhantomThief/adaptive-executor-java.git</connection>
         <url>https://github.com/PhantomThief/adaptive-executor-java.git</url>
-        <developerConnection>scm:git:https://github.com/PhantomThief/adaptive-executor-java.git</developerConnection>
+        <developerConnection>scm:git:git@github.com:PhantomThief/adaptive-executor-java.git</developerConnection>
     </scm>
 
     <dependencyManagement>
