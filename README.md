@@ -1,5 +1,10 @@
-adaptive-executor-java [![Build Status](https://travis-ci.org/PhantomThief/adaptive-executor-java.svg)](https://travis-ci.org/PhantomThief/adaptive-executor-java) [![Coverage Status](https://coveralls.io/repos/PhantomThief/adaptive-executor-java/badge.svg?branch=master)](https://coveralls.io/r/PhantomThief/adaptive-executor-java?branch=master)
+adaptive-executor-java
 =======================
+[![Build Status](https://travis-ci.org/PhantomThief/adaptive-executor-java.svg)](https://travis-ci.org/PhantomThief/adaptive-executor-java)
+[![Coverage Status](https://coveralls.io/repos/PhantomThief/adaptive-executor-java/badge.svg?branch=master)](https://coveralls.io/r/PhantomThief/adaptive-executor-java?branch=master)
+[![Total alerts](https://img.shields.io/lgtm/alerts/g/PhantomThief/adaptive-executor-java.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/PhantomThief/adaptive-executor-java/alerts/)
+[![Language grade: Java](https://img.shields.io/lgtm/grade/java/g/PhantomThief/adaptive-executor-java.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/PhantomThief/adaptive-executor-java/context:java)
+[![Maven Central](https://img.shields.io/maven-central/v/com.github.phantomthief/adaptive-executor)](https://search.maven.org/artifact/com.github.phantomthief/adaptive-executor/)
 
 自适应的Executor框架封装
 
@@ -9,14 +14,6 @@ adaptive-executor-java [![Build Status](https://travis-ci.org/PhantomThief/adapt
 * 只支持Java8
 
 ## 基本使用
-
-```xml
-<dependency>
-    <groupId>com.github.phantomthief</groupId>
-    <artifactId>adaptive-executor</artifactId>
-    <version>0.1.5-SNAPSHOT</version>
-</dependency>
-```
 
 ```Java
 // 声明executor
