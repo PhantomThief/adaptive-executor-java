@@ -52,8 +52,8 @@ public class AdaptiveExecutor implements AutoCloseable {
     private static final Object EMPTY_OBJECT = new Object();
     private static final CallerRunsPolicy CALLER_RUNS_POLICY = new CallerRunsPolicy();
     private static final ListeningExecutorService DIRECT_EXECUTOR_SERVICE = newDirectExecutorService();
-    private static Logger logger = getLogger(AdaptiveExecutor.class);
-    private static CloseableSupplier<AdaptiveExecutor> cpuCoreAdaptive = lazy(
+    private static final Logger logger = getLogger(AdaptiveExecutor.class);
+    private static final CloseableSupplier<AdaptiveExecutor> cpuCoreAdaptive = lazy(
             AdaptiveExecutor.newBuilder()
                     .withGlobalMaxThread(Runtime.getRuntime().availableProcessors())
                     .maxThreadAsPossible(Runtime.getRuntime().availableProcessors())::build);
