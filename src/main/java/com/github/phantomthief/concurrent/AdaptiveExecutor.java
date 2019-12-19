@@ -71,7 +71,15 @@ public class AdaptiveExecutor implements AutoCloseable {
         return new Builder();
     }
 
+    /**
+     * use {@link #getCpuCoreAdaptiveExecutor()}
+     */
+    @Deprecated
     public static AdaptiveExecutor getCpuCoreAdpativeExecutor() {
+        return cpuCoreAdaptive.get();
+    }
+
+    public static AdaptiveExecutor getCpuCoreAdaptiveExecutor() {
         return cpuCoreAdaptive.get();
     }
 
@@ -241,7 +249,7 @@ public class AdaptiveExecutor implements AutoCloseable {
 
         private void ensure() {
             checkNotNull(threadCountFunction, "thread count function is null.");
-            checkArgument(globalMaxThread > 0, "global max thread is illeagl.");
+            checkArgument(globalMaxThread > 0, "global max thread is illegal.");
 
             if (threadTimeout <= 0) {
                 threadTimeout = DEFAULT_TIMEOUT;
