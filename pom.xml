@@ -18,7 +18,7 @@
         <slf4j-api.version>1.7.21</slf4j-api.version>
         <guava.version>28.1-jre</guava.version>
         <more-lambdas.version>0.1.8</more-lambdas.version>
-        <logback-classic.version>1.1.8</logback-classic.version>
+        <logback-classic.version>1.2.0</logback-classic.version>
 
         <junit.version>5.6.2</junit.version>
 
